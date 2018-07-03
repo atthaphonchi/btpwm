@@ -25,22 +25,35 @@ double voltage = 0;
 
 int fixCurrent = 0;
 
+int ledPin = 13;
+int ledState = LOW;             // ledState used to set the LED
+long previousMillis = 0;        // will store last time LED was updated
+long interval = 1000;           // interval at which to blink (milliseconds)
+int num = 0; // Manat Add for Hz Show 7-Segments
+
 void setup() {
   //Serial.begin(115200);
   pinMode(jumperAutoPin, INPUT);
-  pinMode(13, OUTPUT);
+  //pinMode(13, OUTPUT);
+  pinMode(ledPin, OUTPUT);  //Manat Add
 
-  digitalWrite(13, HIGH);
+
+  //digitalWrite(13, HIGH);
 
   //pwm init timer safe
   InitTimersSafe();
-
-  u8g.setFont(u8g_font_unifont);
-  u8g.setColorIndex(1);
+  
   initOLED();
+  digitalWrite(ledPin, HIGH);  
+  waitLoop(30000);
+  digitalWrite(ledPin, LOW);  
+
 }
 
 void initOLED(void) {
+  u8g.setFont(u8g_font_unifont);
+  u8g.setColorIndex(1);
+  
   int i = 5;
   while (i > -1) {
     u8g.firstPage();
@@ -54,7 +67,7 @@ void initOLED(void) {
       u8g.undoScale();
     } while ( u8g.nextPage() );
     i--;
-    delay(1000);
+    delay(500);
   }
 }
 
@@ -110,25 +123,49 @@ void generatePwm(void) {
 }
 
 void loop() {
-  readCurrentSensor();
-  readPwm();
-  generatePwm();
-  dispayOLED();
-  blinkLED();
-  modFlag++;
-  delay(100);
-}
+  while(1){
+    unsigned long currentMillis = millis();    //  For ledState
+    readCurrentSensor();
+    readPwm();
+    generatePwm();
+    dispayOLED();
+    //blinkLED();
+    ///modFlag++;
 
-void blinkLED() {
-  if (modFlag < 6) {
-    digitalWrite(13, HIGH);
-  } else {
-    digitalWrite(13, LOW);
-    if (modFlag == 10) {
-      modFlag = 0;
+     if((currentMillis - previousMillis) > (interval/(num+1))) {
+      // save the last time you blinked the LED 
+      previousMillis = currentMillis;   
+  
+      // if the LED is off turn it on and vice-versa:
+      if (ledState == LOW){
+        ledState = HIGH;
+      }else{
+        ledState = LOW;
+      }
+ 
+      // set the LED with the ledState of the variable:
+      digitalWrite(ledPin, ledState);
     }
   }
+  //delay(100);
 }
+
+/*
+void blinkLED() {
+    if((currentMillis - previousMillis) > (interval/(num+1))) {
+    // save the last time you blinked the LED 
+    previousMillis = currentMillis;   
+
+    // if the LED is off turn it on and vice-versa:
+    if (ledState == LOW)
+      ledState = HIGH;
+    else
+      ledState = LOW;
+
+    // set the LED with the ledState of the variable:
+    digitalWrite(ledPin, ledState);
+  }
+}*/
 
 void dispayOLED(void) {
   u8g.firstPage();
@@ -160,4 +197,14 @@ void draw(void) {
   dutyCycleInputStrDisplay.toCharArray(c, 30);
   u8g.drawStr( 5, 25, c);
   u8g.undoScale();
+}
+
+void waitLoop(unsigned int time)
+{
+  unsigned int i,j;
+  for (j=0;j<time;j++)
+  {
+    for (i=0;i<200;i++) //the ATmega is runs at 16MHz
+      if (PORTC==0xFF) DDRB|=0x02; //just a dummy instruction
+  }
 }
