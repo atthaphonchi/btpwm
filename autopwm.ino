@@ -11,6 +11,7 @@ uint32_t  pre_duty;
 uint32_t  prefreqHzInput = 0;
 uint32_t  freqHzInput;
 uint32_t  max_dutyCycleInput = max_dutyCycleInput;
+uint32_t  preDutyCycleInput;
 uint32_t  dutyCycleInput;
 int led = 9;
 
@@ -77,16 +78,22 @@ int readJumperAutoPin(void) {
 }
 
 void readCurrentSensor(void) {
-  rawValue = analogRead(A3);
-  voltage = (rawValue / 1023.0) * 5000; // Gets you mV
-  currentAmp = ((voltage - acsoffset) / mVperAmp);
+  double average = 0.0;
+  for(int i =0; i<50 ; i++){
+    rawValue = analogRead(A3);
+    voltage = (rawValue / 1023.0) * 4820; // Gets you mV
+    average =  average+((voltage - acsoffset) / mVperAmp);
+    delay(1);
+  }
+  currentAmp = average /50;
 }
 
 void readPwm(void) {
+  //pre_hz = analogRead(A0); // map(analogRead(A0), 0, 1023, 1 , 100);
   pre_hz = map(analogRead(A0), 0, 1023, 1 , 100);
   pre_duty = analogRead(A1);
-  if(pre_hz>50){
-    freqHzInput  = pre_hz * 200;
+  if(pre_hz>20){
+    freqHzInput  = (pre_hz-20)*200+2000;
   }else{
     freqHzInput  = pre_hz * 100;  
   }
@@ -94,32 +101,44 @@ void readPwm(void) {
   //check auto or manual
   if(readJumperAutoPin() == HIGH){
     // Manaul
-    dutyCycleInput = pre_duty * 48;
+    pre_duty = map(pre_duty, 0, 1023, 1 , 100);
+    dutyCycleInput = pre_duty * 180;
   }else{
     // Auto
     fixCurrent = map(pre_duty, 0, 1023, 0 , 30);
     if(fixCurrent==0){
       dutyCycleInput = 0;
     }else{
-      if(currentAmp < fixCurrent){
-        dutyCycleInput = dutyCycleInput+32;
-      }else if(currentAmp > fixCurrent)
-        dutyCycleInput = dutyCycleInput-32;
+      if(fixCurrent>currentAmp){
+        dutyCycleInput = dutyCycleInput+100;
+      }else if(fixCurrent < (int) currentAmp){
+        dutyCycleInput = dutyCycleInput-100;
       }
+      /*
+      if((int)currentAmp) < fixCurrent){
+        dutyCycleInput = dutyCycleInput+100;
+      }else if((round(currentAmp) > fixCurrent)
+        dutyCycleInput = dutyCycleInput-100;
+      }
+      */
     }
-    if(dutyCycleInput>49104){
-      dutyCycleInput = 49104;
+    if(dutyCycleInput>30000){
+      dutyCycleInput = 30000;
     }else if(dutyCycleInput<0){
       dutyCycleInput = 0;
     }
+  }
 }
 
 void generatePwm(void) {
   if(prefreqHzInput!=freqHzInput){
     SetPinFrequencySafe(led, freqHzInput);
     prefreqHzInput = freqHzInput ;
-  }  
-  pwmWriteHR(led, dutyCycleInput);
+  }
+  if(preDutyCycleInput != dutyCycleInput){
+    pwmWriteHR(led, dutyCycleInput);
+    preDutyCycleInput = dutyCycleInput;
+  }
 }
 
 void loop() {
